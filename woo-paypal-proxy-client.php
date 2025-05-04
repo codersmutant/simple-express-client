@@ -1178,6 +1178,30 @@ function add_seller_protection_column_styles() {
     <?php
 }
 
+// Prevent WooCommerce from recalculating tax for Express orders
+add_filter('woocommerce_calc_tax', function($tax_array) {
+    // During Express checkout order creation
+    if (defined('DOING_AJAX') && DOING_AJAX && isset($_POST['action']) && $_POST['action'] === 'wpppc_create_express_order') {
+        // Get current totals from POST
+        $current_totals = isset($_POST['current_totals']) ? $_POST['current_totals'] : array();
+        if (!empty($current_totals) && floatval($current_totals['tax']) === 0) {
+            return array(); // No tax
+        }
+    }
+    return $tax_array;
+}, 10, 1);
+
+// Prevent tax display for already adjusted orders
+add_filter('woocommerce_order_get_tax_totals', function($tax_totals, $order) {
+    if ($order->meta_exists('_wpppc_tax_adjusted') && $order->get_meta('_wpppc_tax_adjusted') === 'yes') {
+        $stored_totals = get_post_meta($order->get_id(), '_express_checkout_totals', true);
+        if (!empty($stored_totals) && floatval($stored_totals['tax']) === 0) {
+            return array(); // No tax totals to show
+        }
+    }
+    return $tax_totals;
+}, 10, 2);
+
 
 /**
  * Plugin deactivation hook

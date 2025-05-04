@@ -27,18 +27,32 @@
      * Show loading indicator
      */
     function showLoading(container) {
-        var loadingHtml = '<div class="wpppc-express-loading"><div class="wpppc-express-spinner"></div><span>Processing...</span></div>';
-        $(container).find('.wpppc-express-loading').remove();
-        $(container).append(loadingHtml);
-        $(container).find('.wpppc-express-loading').show();
+         // Create full-screen overlay if it doesn't exist
+    if (!$('#wpppc-express-fullscreen-overlay').length) {
+        $('body').append('<div id="wpppc-express-fullscreen-overlay" style="display:none;"></div>');
     }
+    
+    // Show full-screen overlay with loading content
+    var loadingHtml = `
+        <div class="wpppc-express-loading-wrapper">
+            <div class="wpppc-express-loading">
+                <div class="wpppc-express-spinner"></div>
+                <span>Processing...</span>
+            </div>
+        </div>
+    `;
+    
+    $('#wpppc-express-fullscreen-overlay').html(loadingHtml).fadeIn(300);
+    debug('Showing full-screen loading overlay');
+}
     
     /**
      * Hide loading indicator
      */
     function hideLoading(container) {
-        $(container).find('.wpppc-express-loading').hide();
-    }
+    $('#wpppc-express-fullscreen-overlay').fadeOut(300);
+    //debug('Hiding full-screen loading overlay');
+}
     
     /**
      * Show error message
@@ -280,6 +294,7 @@ function cleanAndParseAmount(amount) {
     
     expressCheckoutActive = true;
     showLoading(container);
+    showMessage('Starting PayPal checkout...', container);
     
     debug('Starting Express Checkout process');
     
@@ -449,6 +464,10 @@ function getSelectedShippingCost() {
     return shippingCost;
 }
     
+    
+    
+  
+
     /**
      * Initialize Express Checkout
      */
