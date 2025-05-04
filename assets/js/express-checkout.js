@@ -23,39 +23,22 @@
         }
     }
     
-function showLoading(container, message) {
-    // Create full-screen overlay if it doesn't exist
-    if (!$('#wpppc-express-fullscreen-overlay').length) {
-        $('body').append('<div id="wpppc-express-fullscreen-overlay" style="display:none;"></div>');
+    /**
+     * Show loading indicator
+     */
+    function showLoading(container) {
+        var loadingHtml = '<div class="wpppc-express-loading"><div class="wpppc-express-spinner"></div><span>Processing...</span></div>';
+        $(container).find('.wpppc-express-loading').remove();
+        $(container).append(loadingHtml);
+        $(container).find('.wpppc-express-loading').show();
     }
     
-    // If message is not provided, use default
-    message = message || 'Processing...';
-    
-    // Show full-screen overlay with loading content
-    var loadingHtml = `
-        <div class="wpppc-express-loading-wrapper">
-            <div class="wpppc-express-loading">
-                <div class="wpppc-express-spinner"></div>
-                <span>${message}</span>
-            </div>
-        </div>
-    `;
-    
-    $('#wpppc-express-fullscreen-overlay').html(loadingHtml).fadeIn(300);
-    debug('Showing full-screen loading overlay with message: ' + message);
-}
-    
-function hideLoading(container) {
-    if (parent !== window) {
-        // If we're in iframe, send message to parent to hide loading
-        parent.postMessage({
-            action: 'hide_loading_overlay'
-        }, '*');
-    } else {
-        $('#wpppc-express-fullscreen-overlay').fadeOut(300);
+    /**
+     * Hide loading indicator
+     */
+    function hideLoading(container) {
+        $(container).find('.wpppc-express-loading').hide();
     }
-}
     
     /**
      * Show error message
@@ -268,14 +251,12 @@ function cleanAndParseAmount(amount) {
                 debug('Payment cancelled by user');
                 showError('Payment cancelled. You can try again when ready.', container);
                 expressCheckoutActive = false;
-                hideLoading(container);
                 break;
                 
             case 'payment_error':
                 debug('Payment error:', event.data.error);
                 showError('Error processing payment: ' + (event.data.error.message || 'Unknown error'), container);
                 expressCheckoutActive = false;
-                hideLoading(container);
                 break;
                 
             case 'resize_iframe':
@@ -298,11 +279,9 @@ function cleanAndParseAmount(amount) {
     }
     
     expressCheckoutActive = true;
-    showLoading(container, 'Creating your order...'); 
-    showMessage('Starting PayPal checkout...', container);
+    showLoading(container);
     
     debug('Starting Express Checkout process');
-    
     
     // Get current checkout totals and selected shippin
     var currentTotals = getCurrentCheckoutTotals();
@@ -322,7 +301,7 @@ function cleanAndParseAmount(amount) {
                 paypalOrderId = response.data.paypal_order_id;
                 
                 debug('Express order created. WC Order ID: ' + wcOrderId + ', PayPal Order ID: ' + paypalOrderId);
-                showLoading(container, 'Opening PayPal checkout...');
+                
                 // Send order data to iframe
                 sendMessageToIframe({
                     action: 'create_paypal_order',
@@ -330,8 +309,7 @@ function cleanAndParseAmount(amount) {
                     paypal_order_id: paypalOrderId
                 });
                 
-                //hideLoading(container);
-                //showMessage('Opening PayPal checkout...', container);
+                hideLoading(container);
             } else {
                 expressCheckoutActive = false;
                 hideLoading(container);
@@ -354,7 +332,6 @@ function completeExpressCheckout(paymentData, container) {
     
     // Show loading indicator
     showLoading(container);
-    showLoading(container, 'Finalizing your order...');
     showMessage('Fetching order details...', container);
     
     // Fetch PayPal order details to get shipping/billing address
@@ -472,10 +449,6 @@ function getSelectedShippingCost() {
     return shippingCost;
 }
     
-    
-    
-  
-
     /**
      * Initialize Express Checkout
      */
@@ -506,56 +479,11 @@ function getSelectedShippingCost() {
         });
     }
 }
-
-
-// Add this new function to handle overlay messages
-function setupLoadingOverlayListener() {
-    window.addEventListener('message', function(event) {
-        if (event.data && event.data.action) {
-            switch(event.data.action) {
-                case 'show_loading_overlay':
-                    showMainPageLoadingOverlay(event.data.message);
-                    break;
-                case 'hide_loading_overlay':
-                    hideMainPageLoadingOverlay();
-                    break;
-            }
-        }
-    });
-}
-
-function showMainPageLoadingOverlay(message) {
-    if (!$('#wpppc-main-loading-overlay').length) {
-        $('body').append(`
-            <div id="wpppc-main-loading-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:999999;display:none;">
-                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;">
-                    <div style="background:white;padding:20px;border-radius:5px;">
-                        <div style="width:30px;height:30px;border:3px solid #f3f3f3;border-top:3px solid #3498db;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 10px;"></div>
-                        <span>${message || 'Processing...'}</span>
-                    </div>
-                </div>
-            </div>
-        `);
-        
-        // Add animation keyframes
-        if (!$('#wpppc-loading-animation').length) {
-            $('<style id="wpppc-loading-animation">@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}</style>').appendTo('head');
-        }
-    }
-    
-    $('#wpppc-main-loading-overlay').fadeIn(300);
-}
-
-function hideMainPageLoadingOverlay() {
-    $('#wpppc-main-loading-overlay').fadeOut(300);
-}
-
     
     /**
      * Initialize on document ready
      */
     $(document).ready(function() {
-        setupLoadingOverlayListener();
         // Initialize only if we have PayPal button containers
         if ($('.wpppc-express-paypal-button').length > 0) {
             initExpressCheckout();

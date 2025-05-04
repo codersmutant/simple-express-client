@@ -62,76 +62,6 @@
         });
     }
     
-    
-    /**
- * Show full-page loading overlay with dynamic message
- */
-function showFullPageLoading(message) {
-    // Create full-screen overlay if it doesn't exist
-    if (!$('#wpppc-fullpage-overlay').length) {
-        $('body').append('<div id="wpppc-fullpage-overlay" style="display:none;"></div>');
-        
-        // Add styles
-        if (!$('#wpppc-fullpage-overlay-styles').length) {
-            $('<style id="wpppc-fullpage-overlay-styles">')
-                .text(`
-                    #wpppc-fullpage-overlay {
-                        position: fixed !important;
-                        top: 0 !important;
-                        left: 0 !important;
-                        width: 100% !important;
-                        height: 100% !important;
-                        background: rgba(0, 0, 0, 0.6) !important;
-                        z-index: 999999 !important;
-                        display: flex !important;
-                        justify-content: center !important;
-                        align-items: center !important;
-                    }
-                    .wpppc-fullpage-loading-wrapper {
-                        text-align: center;
-                    }
-                    .wpppc-fullpage-loading {
-                        background: white;
-                        padding: 20px;
-                        border-radius: 5px;
-                    }
-                    .wpppc-fullpage-spinner {
-                        width: 30px;
-                        height: 30px;
-                        border: 3px solid #f3f3f3;
-                        border-top: 3px solid #3498db;
-                        border-radius: 50%;
-                        animation: spin 1s linear infinite;
-                        margin: 0 auto 10px;
-                    }
-                    @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                `)
-                .appendTo('head');
-        }
-    }
-    
-    var loadingHtml = `
-        <div class="wpppc-fullpage-loading-wrapper">
-            <div class="wpppc-fullpage-loading">
-                <div class="wpppc-fullpage-spinner"></div>
-                <span>${message || 'Processing...'}</span>
-            </div>
-        </div>
-    `;
-    
-    $('#wpppc-fullpage-overlay').html(loadingHtml).fadeIn(300);
-}
-
-/**
- * Hide full-page loading overlay
- */
-function hideFullPageLoading() {
-    $('#wpppc-fullpage-overlay').fadeOut(300);
-}
-    
     /**
      * Setup message listener for communication with iframe
      */
@@ -144,7 +74,6 @@ function hideFullPageLoading() {
             }
             
             const data = event.data;
-            
             
             // Check if message is for us
             if (!data || !data.action || data.source !== 'paypal-proxy') {
@@ -188,14 +117,10 @@ function handlePayPalButtonClick() {
         return;
     }
     
-    
-    isPayPalPayment = true;
     creatingOrder = true;
     
     // Clear previous errors
     clearErrors();
-    
-    showFullPageLoading('Creating your order...');
     
     validateCheckoutFields().then(function(validationResult) {
         if (!validationResult.valid) {
@@ -213,7 +138,7 @@ function handlePayPalButtonClick() {
                 message: 'Validation failed'
             });
             
-            hideFullPageLoading();
+            
             
             return;
         }
@@ -224,8 +149,6 @@ function handlePayPalButtonClick() {
             orderID = orderData.order_id;
             orderCreated = true;
             creatingOrder = false;
-            
-            showFullPageLoading('Opening PayPal checkout...');
             
             // Send message to iframe with order info
             sendMessageToIframe({
@@ -248,11 +171,9 @@ function handlePayPalButtonClick() {
                 action: 'order_creation_failed',
                 message: error.message || 'Failed to create order'
             });
-            hideFullPageLoading();
         });
     }).catch(function(error) {
         creatingOrder = false;
-        hideFullPageLoading();
     });
 }
 
