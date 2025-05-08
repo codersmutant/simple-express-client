@@ -464,46 +464,78 @@ function wpppc_create_order_handler() {
             
             $cart_subtotal = 10.00;
         } else {
-            // Process real cart items
-            foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
-                $product = $cart_item['data'];
-                
-                // Get product details
-                $name = $product->get_name();
-                $quantity = $cart_item['quantity'];
-                $price = $cart_item['line_subtotal'] / $quantity; // Unit price without tax
-                $tax = $cart_item['line_tax'] / $quantity; // Unit tax
-                
-                // Add to order
-                $order->add_product(
-                    $product,
-                    $quantity,
-                    array(
-                        'subtotal' => $cart_item['line_subtotal'],
-                        'total' => $cart_item['line_total'],
-                        'subtotal_tax' => $cart_item['line_subtotal_tax'],
-                        'total_tax' => $cart_item['line_tax'],
-                        'taxes' => $cart_item['line_tax_data']
-                    )
-                );
-                
-                // Add to line items array for PayPal
-                $line_items[] = array(
-                    'name' => $name,
-                    'quantity' => $quantity,
-                    'unit_price' => wc_format_decimal($price, 2),
-                    'tax_amount' => wc_format_decimal($cart_item['line_tax'], 2),
-                    'sku' => $product->get_sku() ? $product->get_sku() : 'SKU-' . $product->get_id(),
-                    'description' => $product->get_short_description() ? substr(wp_strip_all_tags($product->get_short_description()), 0, 127) : '',
-                    'product_id' => $product->get_id()
-                );
-                
-                // Pass server ID to the mapping function
-                $line_items = add_product_mappings_to_items($line_items, $server->id);
-                
-                $cart_subtotal += $cart_item['line_subtotal'];
-                $tax_total += $cart_item['line_tax'];
-            }
+
+// Create a session key to store the order ID for hook reference
+$session_order_key = 'wpppc_temp_order_id';
+WC()->session->set($session_order_key, $order->get_id());
+
+// Process cart items with proper hook triggering
+foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
+    $product = $cart_item['data'];
+    
+    // Get product details
+    $name = $product->get_name();
+    $quantity = $cart_item['quantity'];
+    $price = $cart_item['line_subtotal'] / $quantity;
+    $tax = $cart_item['line_tax'] / $quantity;
+    
+    // Create the line item
+    $item = new WC_Order_Item_Product();
+    
+    // Set basic properties
+    $item->set_props(array(
+        'product_id'   => $product->get_id(),
+        'variation_id' => !empty($cart_item['variation_id']) ? $cart_item['variation_id'] : 0,
+        'quantity'     => $quantity,
+        'subtotal'     => $cart_item['line_subtotal'],
+        'total'        => $cart_item['line_total'],
+        'subtotal_tax' => isset($cart_item['line_subtotal_tax']) ? $cart_item['line_subtotal_tax'] : 0,
+        'total_tax'    => isset($cart_item['line_tax']) ? $cart_item['line_tax'] : 0,
+        'taxes'        => isset($cart_item['line_tax_data']) ? $cart_item['line_tax_data'] : array(),
+    ));
+    
+    $item->set_name($product->get_name());
+    
+    // Add variation data
+    if (!empty($cart_item['variation'])) {
+        foreach ($cart_item['variation'] as $meta_name => $meta_value) {
+            $item->add_meta_data(str_replace('attribute_', '', $meta_name), $meta_value, true);
+        }
+    }
+    
+    // CRITICAL: Run the WooCommerce hook that WAPF and other plugins use
+    // to add their custom data to order line items
+    do_action('woocommerce_checkout_create_order_line_item', $item, $cart_item_key, $cart_item, $order);
+    
+    // Add the item to the order
+    $order->add_item($item);
+    
+    // Add to line items array for PayPal
+    $line_items[] = array(
+        'name' => $name,
+        'quantity' => $quantity,
+        'unit_price' => wc_format_decimal($price, 2),
+        'tax_amount' => wc_format_decimal(isset($cart_item['line_tax']) ? $cart_item['line_tax'] : 0, 2),
+        'sku' => $product->get_sku() ? $product->get_sku() : 'SKU-' . $product->get_id(),
+        'description' => $product->get_short_description() ? substr(wp_strip_all_tags($product->get_short_description()), 0, 127) : '',
+        'product_id' => $product->get_id()
+    );
+    
+    // Pass server ID to the mapping function
+    $line_items = add_product_mappings_to_items($line_items, $server->id);
+    
+    $cart_subtotal += $cart_item['line_subtotal'];
+    $tax_total += isset($cart_item['line_tax']) ? $cart_item['line_tax'] : 0;
+}
+
+// Run the hook that WAPF might use after all items are added
+do_action('woocommerce_checkout_create_order', $order, array());
+
+// Trigger the order meta hook that some plugins use
+do_action('woocommerce_checkout_update_order_meta', $order->get_id(), array());
+
+// Clean up session
+WC()->session->__unset($session_order_key);
         }
         
         // Set payment method
@@ -1201,6 +1233,8 @@ add_filter('woocommerce_order_get_tax_totals', function($tax_totals, $order) {
     }
     return $tax_totals;
 }, 10, 2);
+
+
 
 
 /**

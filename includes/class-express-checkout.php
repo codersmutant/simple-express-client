@@ -160,35 +160,44 @@ public function ajax_create_express_order() {
             update_post_meta($order->get_id(), '_express_checkout_totals', $current_totals);
         }
         
-        // Add cart items to order
-        foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
-            $product = $cart_item['data'];
-            $variation_id = !empty($cart_item['variation_id']) ? $cart_item['variation_id'] : 0;
-            
-            // Add line item
-            $item = new WC_Order_Item_Product();
-            $item->set_props(array(
-                'product_id'   => $product->get_id(),
-                'variation_id' => $variation_id,
-                'quantity'     => $cart_item['quantity'],
-                'subtotal'     => $cart_item['line_subtotal'],
-                'total'        => $cart_item['line_total'],
-                'subtotal_tax' => $cart_item['line_subtotal_tax'],
-                'total_tax'    => $cart_item['line_tax'],
-                'taxes'        => $cart_item['line_tax_data']
-            ));
-            
-            $item->set_name($product->get_name());
-            
-            // Add variation data
-            if (!empty($cart_item['variation'])) {
-                foreach ($cart_item['variation'] as $meta_name => $meta_value) {
-                    $item->add_meta_data(str_replace('attribute_', '', $meta_name), $meta_value);
-                }
-            }
-            
-            $order->add_item($item);
+// Add cart items to order
+foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
+    $product = $cart_item['data'];
+    $variation_id = !empty($cart_item['variation_id']) ? $cart_item['variation_id'] : 0;
+    
+    // Add line item
+    $item = new WC_Order_Item_Product();
+    $item->set_props(array(
+        'product_id'   => $product->get_id(),
+        'variation_id' => $variation_id,
+        'quantity'     => $cart_item['quantity'],
+        'subtotal'     => $cart_item['line_subtotal'],
+        'total'        => $cart_item['line_total'],
+        'subtotal_tax' => $cart_item['line_subtotal_tax'],
+        'total_tax'    => $cart_item['line_tax'],
+        'taxes'        => $cart_item['line_tax_data']
+    ));
+    
+    $item->set_name($product->get_name());
+    
+    // Add variation data
+    if (!empty($cart_item['variation'])) {
+        foreach ($cart_item['variation'] as $meta_name => $meta_value) {
+            $item->add_meta_data(str_replace('attribute_', '', $meta_name), $meta_value);
         }
+    }
+    
+    // CRITICAL: Run the WooCommerce hook that WAPF and other plugins use
+    do_action('woocommerce_checkout_create_order_line_item', $item, $cart_item_key, $cart_item, $order);
+    
+    $order->add_item($item);
+}
+
+// Run the hook that WAPF might use after all items are added
+do_action('woocommerce_checkout_create_order', $order, array());
+
+// Trigger the order meta hook that some plugins use
+do_action('woocommerce_checkout_update_order_meta', $order->get_id(), array());
         
         // Add fees
         foreach (WC()->cart->get_fees() as $fee) {
